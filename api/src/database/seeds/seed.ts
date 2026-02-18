@@ -68,6 +68,7 @@ export async function runSeed(dataSource: DataSource) {
       { name: 'Vendas', type: 'ENTRY' as const },
       { name: 'Bonificação', type: 'ENTRY' as const },
       { name: 'Outros Ganhos', type: 'ENTRY' as const },
+      { name: 'ADIANTAMENTO', type: 'ENTRY' as const }, // User requested
 
       // Categorias de SAÍDA
       { name: 'Alimentação', type: 'EXIT' as const },
@@ -197,6 +198,7 @@ export async function runSeed(dataSource: DataSource) {
       },
     ];
 
+    /*
     for (const txData of transactionsData) {
       const exists = await transactionRepo.findOne({
         where: {
@@ -215,6 +217,8 @@ export async function runSeed(dataSource: DataSource) {
         console.log(`   ℹ️  Transação já existe: ${txData.description}`);
       }
     }
+    */
+    console.log('   ⚠️  Transações de exemplo ignoradas (Cleanup solicitado).');
 
     // ========================================
     // 4. RESUMO

@@ -24,15 +24,17 @@ export class TransactionController {
     @Query('page') page?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
+    @Query('categoryId') categoryId?: string,
   ): Promise<{ data: TransactionResponseDto[]; total: number }>  {
     const m = month ? parseInt(month, 10) : undefined;
     const y = year ? parseInt(year, 10) : undefined;
     const l = limit ? parseInt(limit, 10) : 10;
     const p = page ? parseInt(page, 10) : 1;
+    const c = categoryId ? parseInt(categoryId, 10) : undefined;
 
     const order = sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    return this.transactionService.findAll(userId, m, y, l, p, sortBy, order);
+    return this.transactionService.findAll(userId, m, y, l, p, sortBy, order, c);
   }
 
   @Get('balance')
@@ -44,6 +46,19 @@ export class TransactionController {
     const m = month ? parseInt(month, 10) : undefined;
     const y = year ? parseInt(year, 10) : undefined;
     return this.transactionService.getBalanceByUser(userId, m, y);
+  }
+
+  @Get('dashboard/charts')
+  getChartData(
+    @UserId() userId: number,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+    @Query('categoryId') categoryId?: string
+  ): Promise<any> {
+    const m = month ? parseInt(month, 10) : undefined;
+    const y = year ? parseInt(year, 10) : undefined;
+    const c = categoryId ? parseInt(categoryId, 10) : undefined;
+    return this.transactionService.getChartData(userId, m, y, c);
   }
 
   @Get(':id')

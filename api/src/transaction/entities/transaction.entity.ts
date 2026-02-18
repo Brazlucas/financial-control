@@ -25,6 +25,16 @@ export class Transaction {
   @Column()
   type: TransactionType;
 
+  // OFX Fields
+  @Column({ unique: true, nullable: true }) // Nullable for manual transactions
+  fitid: string;
+
+  @Column({ nullable: true })
+  memo: string;
+
+  @Column({ nullable: true })
+  refnum: string;
+
   @CreateDateColumn()
   date: Date;
 

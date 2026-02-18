@@ -5,17 +5,12 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:full": "make dev-full",
     "dev:api": "cd api && npm run start:dev",
     "dev:web": "cd web && npm run dev",
-    "db:up": "make dev-db",
-    "db:down": "make stop-db",
-    "db:restart": "make restart-db",
-    "db:logs": "make logs-db",
-    "db:status": "make status-db",
-    "seed": "make seed",
-    "seed:fresh": "make seed-fresh",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed": "cd api && npm run seed",
+    "seed:fresh": "cd api && npm run seed:fresh",
+    "build:api": "cd api && npm run build",
+    "build:web": "cd web && npm run build"
   },
   "author": "Brazlucas",
   "license": "ISC",

@@ -9,7 +9,7 @@
               PAINEL ADMINISTRATIVO
             </h1>
             <p class="text-subtitle-1" style="color: var(--neon-cyan); opacity: 0.8;">
-              Sistema de Controle Financeiro v2.0
+              Sistema de Controle Financeiro v3.0
             </p>
           </div>
           <div class="d-flex">

@@ -1,44 +1,49 @@
 <template>
   <div class="login-container">
-    <div class="cyber-background"></div>
+    <div class="minimal-background"></div>
     
     <v-container class="h-100 w-100 d-flex align-center justify-center pa-0">
       <v-card
         class="pa-8 login-card"
-        elevation="24"
-        max-width="500"
+        elevation="10"
+        max-width="450"
         width="100%"
+        rounded="xl"
       >
         <div class="text-center mb-8">
-          <v-icon size="64" color="primary" class="mb-4 neon-pulse">
-            mdi-shield-lock
-          </v-icon>
-          <h1 class="text-h4 font-weight-bold neon-text mb-2">
-            ACESSO AO SISTEMA
+          <v-avatar color="primary" size="80" class="mb-4 elevation-3">
+            <v-icon size="48" color="on-primary">mdi-shield-check</v-icon>
+          </v-avatar>
+          <h1 class="text-h4 font-weight-bold text-primary mb-2">
+            Bem-vindo
           </h1>
-          <p class="text-subtitle-1" style="color: var(--neon-cyan); opacity: 0.8;">
-            Financial Control v2.0
+          <p class="text-subtitle-1 text-medium-emphasis">
+            Financial Control v3.0
           </p>
         </div>
 
         <v-form @submit.prevent="handleLogin" ref="formRef" v-model="formIsValid">
           <v-text-field
             v-model="form.email"
-            label="EMAIL"
+            label="Email"
             :rules="[rules.required, rules.email]"
             type="email"
-            prepend-inner-icon="mdi-email"
+            prepend-inner-icon="mdi-email-outline"
             variant="outlined"
+            density="comfortable"
+            color="primary"
             class="mb-4"
           />
 
           <v-text-field
             v-model="form.password"
-            label="SENHA"
+            label="Senha"
             :rules="[rules.required]"
             type="password"
-            prepend-inner-icon="mdi-lock"
+            prepend-inner-icon="mdi-lock-outline"
             variant="outlined"
+            density="comfortable"
+            color="primary"
             class="mb-6"
           />
 
@@ -48,24 +53,22 @@
             size="large"
             :disabled="!formIsValid || isLoading"
             block
-            variant="elevated"
-            class="login-btn"
+            flat
+            class="login-btn text-none font-weight-bold"
+            height="48"
           >
-            <CyberpunkLoader 
+            <MinimalLoader 
               v-if="isLoading" 
-              type="button" 
-              size="small"
+              :size="24"
+              :width="3"
             />
-            <template v-else>
-              <v-icon start>mdi-login</v-icon>
-              INICIAR SESSÃO
-            </template>
+            <span v-else>Entrar no Sistema</span>
           </v-btn>
         </v-form>
 
-        <div class="text-center mt-6">
-          <p class="text-caption" style="color: rgba(0, 255, 255, 0.5);">
-            Sistema protegido • Acesso monitorado
+        <div class="text-center mt-8">
+          <p class="text-caption text-disabled">
+            &copy; {{ new Date().getFullYear() }} Financial Control. Todos os direitos reservados.
           </p>
         </div>
       </v-card>
@@ -76,7 +79,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useLogin } from './composables/useLogin'
-import CyberpunkLoader from '@/components/CyberpunkLoader.vue'
+import MinimalLoader from '@/components/MinimalLoader.vue'
 
 const form = reactive({ email: '', password: '' })
 const formRef = ref()
@@ -108,81 +111,25 @@ const handleLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: rgb(var(--v-theme-background));
   overflow: hidden;
 }
 
-.cyber-background {
+.minimal-background {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(
-    circle at 50% 50%,
-    rgba(0, 255, 255, 0.1) 0%,
-    transparent 50%
-  );
-  animation: pulseBackground 4s ease-in-out infinite;
-}
-
-@keyframes pulseBackground {
-  0%, 100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.1);
-  }
+  /* Subtle gradient for premium feel */
+  background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.05) 0%, rgba(var(--v-theme-surface), 1) 100%);
+  z-index: 0;
 }
 
 .login-card {
   position: relative;
   z-index: 10;
-  border: 2px solid var(--neon-cyan) !important;
-  box-shadow: 
-    0 0 60px rgba(0, 255, 255, 0.5),
-    inset 0 0 60px rgba(0, 255, 255, 0.1) !important;
-}
-
-.neon-text {
-  color: var(--neon-cyan);
-  text-shadow: 
-    0 0 10px var(--neon-cyan),
-    0 0 20px var(--neon-cyan),
-    0 0 30px var(--neon-cyan);
-}
-
-.neon-pulse {
-  animation: neonPulse 2s ease-in-out infinite;
-}
-
-@keyframes neonPulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 10px var(--neon-cyan));
-  }
-  50% {
-    filter: drop-shadow(0 0 30px var(--neon-cyan));
-  }
-}
-
-.login-btn {
-  position: relative;
-  overflow: hidden;
-}
-
-.login-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.login-btn:hover::before {
-  left: 100%;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 </style>
