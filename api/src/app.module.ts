@@ -10,6 +10,7 @@ import { UserModule } from './user/user.module';
 import { CategoryModule } from './category/category.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { OfxModule } from './ofx/ofx.module';
+import { CategoryRuleModule } from './category-rule/category-rule.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { OfxModule } from './ofx/ofx.module';
     CategoryModule,
     TransactionModule,
     OfxModule,
+    CategoryRuleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

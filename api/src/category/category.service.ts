@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
@@ -23,7 +23,7 @@ export class CategoryService {
 
   findAll() {
     return this.categoryRepo.find({
-      select: ['id', 'name', 'type', 'createdAt'],
+      select: ['id', 'name', 'type', 'isSystem', 'createdAt'],
       order: {
         createdAt: 'DESC',
       },
@@ -37,12 +37,18 @@ export class CategoryService {
   }
 
   async update(id: number, dto: UpdateCategoryDto) {
-    await this.findOne(id);
+    const category = await this.findOne(id);
+    if (category.isSystem) {
+       throw new BadRequestException('System categories cannot be updated');
+    }
     return this.categoryRepo.update(id, dto);
   }
 
   async remove(id: number) {
-    await this.findOne(id);
+    const category = await this.findOne(id);
+    if (category.isSystem) {
+      throw new BadRequestException('System categories cannot be deleted');
+    }
     return this.categoryRepo.delete(id);
   }
 

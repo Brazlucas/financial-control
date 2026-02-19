@@ -17,7 +17,21 @@
             </p>
           </div>
           <div class="d-flex align-center gap-2">
-             <!-- Global Date Filters -->
+             <!-- Global Date Filters & Search -->
+             <v-text-field
+              v-model="searchQuery"
+              label="Buscar"
+              placeholder="Ex: Carrefour"
+              variant="outlined"
+              density="compact"
+              hide-details
+              prepend-inner-icon="mdi-magnify"
+              style="min-width: 200px;"
+              bg-color="surface"
+              @update:model-value="() => debouncedApplyFilters()"
+              clearable
+              @click:clear="applyFilters"
+            />
              <v-select
               v-model="selectedMonth"
               :items="monthOptions"
@@ -58,10 +72,35 @@
               @update:model-value="applyFilters"
               :loading="loadingCategories"
               @click:clear="applyFilters"
-            />
+            >
+              <template v-slot:item="{ props, item }">
+                <v-list-item v-bind="props" :title="item.raw.name">
+                  <template v-slot:append>
+                    <v-chip
+                      :color="item.raw.type === 'ENTRY' ? 'green' : 'red'"
+                      size="small"
+                      class="ml-2"
+                      variant="flat"
+                    >
+                      {{ item.raw.type === 'ENTRY' ? 'Entrada' : 'Saída' }}
+                    </v-chip>
+                  </template>
+                </v-list-item>
+              </template>
+              <template v-slot:selection="{ item }">
+                <span class="mr-2">{{ item.raw.name }}</span>
+                <v-chip
+                  :color="item.raw.type === 'ENTRY' ? 'green' : 'red'"
+                  size="small"
+                  variant="flat"
+                >
+                  {{ item.raw.type === 'ENTRY' ? 'Entrada' : 'Saída' }}
+                </v-chip>
+              </template>
+            </v-autocomplete>
 
             <v-btn
-              v-if="selectedMonth || selectedYear || selectedCategoryFilter"
+              v-if="selectedMonth || selectedYear || selectedCategoryFilter || searchQuery"
               color="secondary"
               variant="text"
               size="small"
@@ -151,6 +190,8 @@
         :merchantData="chartData.topMerchants"
         :projectionData="chartData.projection || []"
         :summary="chartData.summary"
+        :incomeCategories="chartData.incomeCategories || []"
+        :topIncomeSources="chartData.topIncomeSources || []"
       />
     </div>
 
@@ -160,6 +201,9 @@
           <h2 class="text-h5 font-weight-bold">
             <v-icon class="mr-2 text-primary">mdi-history</v-icon>
             Últimas Transações
+            <span class="text-subtitle-1 ml-2 text-medium-emphasis">
+               (Total: {{ formatValue(sum) }})
+            </span>
           </h2>
         </div>
         <div v-if="loading" class="d-flex justify-center my-10">
@@ -173,6 +217,7 @@
           v-else
           v-model:page="page"
           v-model:items-per-page="itemsPerPage"
+          v-model="selectedTransactions"
           :items="transactions"
           :loading="loading"
           :headers="headers"
@@ -181,13 +226,16 @@
           density="comfortable"
           hover
           class="elevation-1 rounded-lg"
+          show-select
+          item-value="id"
+          return-object
         >
           <template v-slot:item.date="{ item }">
             {{ formatDate((item as any).date) }}
           </template>
           <template v-slot:item.value="{ item }">
             <span :class="(item as any).type === 'ENTRY' ? 'text-success font-weight-bold' : 'text-error font-weight-bold'">
-              {{ (item as any).type === 'ENTRY' ? '+ ' : '- ' }}
+              {{ (item as any).type === 'ENTRY' ? '+ ' : '' }}
               {{ formatValue(Number((item as any).value)) }}
             </span>
           </template>
@@ -225,6 +273,61 @@
       </v-col>
     </v-row>
 
+    <!-- Floating Calculator Widget -->
+    <v-fade-transition>
+      <v-card
+        v-if="selectedTransactions.length > 0"
+        class="calculator-widget"
+        elevation="8"
+        rounded="lg"
+        border
+      >
+        <v-card-title class="bg-surface text-subtitle-2 font-weight-bold d-flex justify-space-between align-center py-2">
+          <span>Calculadora de Gastos ({{ selectedTransactions.length }})</span>
+          <v-btn icon="mdi-close" size="x-small" variant="text" @click="selectedTransactions = []"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-4">
+          <div class="d-flex justify-space-between align-center mb-4">
+             <span class="text-caption text-medium-emphasis">Total Selecionado:</span>
+             <span class="text-h6 font-weight-bold" :class="selectedTotal >= 0 ? 'text-success' : 'text-error'">
+                {{ formatValue(selectedTotal) }}
+             </span>
+          </div>
+
+          <v-divider class="mb-4"></v-divider>
+
+          <div class="d-flex gap-2 mb-2">
+              <v-text-field
+                v-model.number="calcInput"
+                label="Simular Valor"
+                type="number"
+                density="compact"
+                variant="outlined"
+                hide-details
+                prefix="R$"
+              ></v-text-field>
+          </div>
+
+          <div class="d-flex justify-space-between gap-2">
+             <v-btn-group density="compact" class="flex-grow-1" divided variant="outlined">
+                <v-btn @click="calcOperation('+')" icon="mdi-plus" color="primary"></v-btn>
+                <v-btn @click="calcOperation('-')" icon="mdi-minus" color="primary"></v-btn>
+                <v-btn @click="calcOperation('*')" icon="mdi-close" color="primary"></v-btn>
+                <v-btn @click="calcOperation('/')" icon="mdi-slash-forward" color="primary"></v-btn>
+             </v-btn-group>
+          </div>
+
+          <div v-if="calcResult !== null" class="mt-4 pa-3 bg-grey-lighten-4 rounded text-center">
+             <div class="text-caption text-medium-emphasis mb-1">Resultado Simulado</div>
+             <div class="text-h6 font-weight-bold primary--text">
+                {{ formatValue(calcResult) }}
+             </div>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-fade-transition>
+
     <!-- Edit Category Dialog -->
     <v-dialog v-model="editDialog" max-width="500px">
       <v-card>
@@ -244,7 +347,32 @@
             variant="outlined"
             auto-select-first
             :loading="loadingCategories"
-          ></v-autocomplete>
+          >
+            <template v-slot:item="{ props, item }">
+              <v-list-item v-bind="props" :title="item.raw.name">
+                <template v-slot:append>
+                  <v-chip
+                    :color="item.raw.type === 'ENTRY' ? 'green' : 'red'"
+                    size="small"
+                    class="ml-2"
+                    variant="flat"
+                  >
+                    {{ item.raw.type === 'ENTRY' ? 'Entrada' : 'Saída' }}
+                  </v-chip>
+                </template>
+              </v-list-item>
+            </template>
+            <template v-slot:selection="{ item }">
+              <span class="mr-2">{{ item.raw.name }}</span>
+              <v-chip
+                :color="item.raw.type === 'ENTRY' ? 'green' : 'red'"
+                size="small"
+                variant="flat"
+              >
+                {{ item.raw.type === 'ENTRY' ? 'Entrada' : 'Saída' }}
+              </v-chip>
+            </template>
+          </v-autocomplete>
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
@@ -268,12 +396,14 @@ import api from '@/services/http.service';
 
 const router = useRouter();
 const { summary, chartData, loadDashboard } = useDashboard();
-const { transactions, total, itemsPerPage, sortBy, page, load, loading, setDateFilter, clearDateFilter } = usePaginatedTransactions();
+const { transactions, total, sum, itemsPerPage, sortBy, page, load, loading, setDateFilter, clearDateFilter } = usePaginatedTransactions();
 
 // Filtros
 const selectedMonth = ref<number | null>(null);
 const selectedYear = ref<number | null>(null);
 const selectedCategoryFilter = ref<number | null>(null);
+const searchQuery = ref<string>('');
+let debounceTimer: any = null;
 
 // Category Edit State
 const editDialog = ref(false);
@@ -282,6 +412,32 @@ const selectedCategoryId = ref<number | null>(null);
 const categories = ref<any[]>([]);
 const loadingCategories = ref(false);
 const savingCategory = ref(false);
+
+// Calculator State
+const selectedTransactions = ref<any[]>([]);
+const calcInput = ref<number | null>(null);
+const calcResult = ref<number | null>(null);
+
+const selectedTotal = computed(() => {
+  return selectedTransactions.value.reduce((acc, t) => {
+    const val = parseFloat(t.value as any);
+    const signedVal = t.type === 'ENTRY' ? val : -Math.abs(val);
+    return acc + signedVal;
+  }, 0);
+});
+
+const calcOperation = (op: string) => {
+    if (calcInput.value === null) return;
+    const base = selectedTotal.value;
+    const modifier = calcInput.value;
+
+    switch(op) {
+        case '+': calcResult.value = base + modifier; break;
+        case '-': calcResult.value = base - modifier; break;
+        case '*': calcResult.value = base * modifier; break;
+        case '/': calcResult.value = base / modifier; break;
+    }
+}
 
 const loadCategories = async () => {
   loadingCategories.value = true;
@@ -327,7 +483,7 @@ const saveCategory = async () => {
     }
     
     // Refresh dashboard to update charts
-    loadDashboard(selectedMonth.value || undefined, selectedYear.value || undefined);
+    loadDashboard(selectedMonth.value || undefined, selectedYear.value || undefined, selectedCategoryFilter.value || undefined, searchQuery.value || undefined);
     
     closeEditDialog();
   } catch (error) {
@@ -362,15 +518,25 @@ const yearOptions = computed(() => {
   return years;
 });
 
+
+const debouncedApplyFilters = () => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    applyFilters();
+  }, 500);
+}
+
 const applyFilters = () => {
-  setDateFilter(selectedMonth.value || undefined, selectedYear.value || undefined, selectedCategoryFilter.value || undefined);
-  loadDashboard(selectedMonth.value || undefined, selectedYear.value || undefined, selectedCategoryFilter.value || undefined);
+  const search = searchQuery.value || undefined;
+  setDateFilter(selectedMonth.value || undefined, selectedYear.value || undefined, selectedCategoryFilter.value || undefined, search);
+  loadDashboard(selectedMonth.value || undefined, selectedYear.value || undefined, selectedCategoryFilter.value || undefined, search);
 };
 
 const clearFilters = () => {
   selectedMonth.value = null;
   selectedYear.value = null;
   selectedCategoryFilter.value = null;
+  searchQuery.value = '';
   clearDateFilter();
   loadDashboard();
 };
@@ -392,7 +558,7 @@ const userLogout = () => {
 }
 
 const formatValue = (value: number) => {
-  if (!value) return 'R$ 0,00';
+  if (!value && value !== 0) return 'R$ 0,00';
 
   return value.toLocaleString('pt-BR', {
     style: 'currency',
@@ -411,11 +577,11 @@ const formatDate = (date: string) => {
 
 const headers = [
   { title: 'Descrição', key: 'description', sortable: true },
-  { title: 'Valor', key: 'value', sortable: true, align: 'end' },
-  { title: 'Tipo', key: 'type', sortable: true, align: 'center' },
-  { title: 'Categoria', key: 'category', sortable: false, align: 'center' },
-  { title: 'Data', key: 'date', sortable: true, align: 'center' },
-  { title: 'Ações', key: 'actions', sortable: false, align: 'center' },
+  { title: 'Valor', key: 'value', sortable: true, align: 'end' as const },
+  { title: 'Tipo', key: 'type', sortable: true, align: 'center' as const },
+  { title: 'Categoria', key: 'category', sortable: false, align: 'center' as const },
+  { title: 'Data', key: 'date', sortable: true, align: 'center' as const },
+  { title: 'Ações', key: 'actions', sortable: false, align: 'center' as const },
 ]
 
 onMounted(() => {
@@ -424,19 +590,33 @@ onMounted(() => {
 })
 
 const getFilterLabel = () => {
-  if (!selectedMonth.value && !selectedYear.value) return 'Todos os períodos';
+  if (!selectedMonth.value && !selectedYear.value && !searchQuery.value) return 'Todos os períodos';
   const monthName = selectedMonth.value ? monthOptions.find(m => m.value === selectedMonth.value)?.title : '';
   const yearName = selectedYear.value ? selectedYear.value.toString() : '';
+  const searchLabel = searchQuery.value ? ` | Busca: "${searchQuery.value}"` : '';
   
-  if (monthName && yearName) return `${monthName} de ${yearName}`;
-  if (yearName) return `Ano de ${yearName}`;
-  return monthName;
+  let label = '';
+  if (monthName && yearName) label = `${monthName} de ${yearName}`;
+  else if (yearName) label = `Ano de ${yearName}`;
+  else if (monthName) label = monthName;
+  else label = 'Todos os períodos';
+
+  return label + searchLabel;
 }
 </script>
 
 <style scoped>
 .gap-3 {
   gap: 12px;
+}
+.calculator-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 320px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  background: rgba(var(--v-theme-surface), 0.95);
 }
 </style>
 

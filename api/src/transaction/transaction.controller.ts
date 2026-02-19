@@ -25,6 +25,7 @@ export class TransactionController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('search') search?: string,
   ): Promise<{ data: TransactionResponseDto[]; total: number }>  {
     const m = month ? parseInt(month, 10) : undefined;
     const y = year ? parseInt(year, 10) : undefined;
@@ -34,18 +35,19 @@ export class TransactionController {
 
     const order = sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    return this.transactionService.findAll(userId, m, y, l, p, sortBy, order, c);
+    return this.transactionService.findAll(userId, m, y, l, p, sortBy, order, c, search);
   }
 
   @Get('balance')
   getBalance(
     @UserId() userId: number,
     @Query('month') month?: string,
-    @Query('year') year?: string
+    @Query('year') year?: string,
+    @Query('search') search?: string
   ): Promise<{ income: number; expense: number; balance: number }> {
     const m = month ? parseInt(month, 10) : undefined;
     const y = year ? parseInt(year, 10) : undefined;
-    return this.transactionService.getBalanceByUser(userId, m, y);
+    return this.transactionService.getBalanceByUser(userId, m, y, search);
   }
 
   @Get('dashboard/charts')
@@ -53,12 +55,13 @@ export class TransactionController {
     @UserId() userId: number,
     @Query('month') month?: string,
     @Query('year') year?: string,
-    @Query('categoryId') categoryId?: string
+    @Query('categoryId') categoryId?: string,
+    @Query('search') search?: string
   ): Promise<any> {
     const m = month ? parseInt(month, 10) : undefined;
     const y = year ? parseInt(year, 10) : undefined;
     const c = categoryId ? parseInt(categoryId, 10) : undefined;
-    return this.transactionService.getChartData(userId, m, y, c);
+    return this.transactionService.getChartData(userId, m, y, c, search);
   }
 
   @Get(':id')

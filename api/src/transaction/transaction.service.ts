@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeleteResult, Repository, UpdateResult } from 'typeorm';
+import { DeleteResult, Repository, UpdateResult, Brackets } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Transaction } from './entities/transaction.entity';
@@ -63,8 +63,9 @@ export class TransactionService {
     page = 1,
     sortBy = 'date',
     sortOrder: 'ASC' | 'DESC' = 'DESC',
-    categoryId?: number
-  ): Promise<{ data: TransactionResponseDto[]; total: number }> {
+    categoryId?: number,
+    search?: string
+  ): Promise<{ data: TransactionResponseDto[]; total: number; sum: number }> {
     const qb = this.transactionRepo
       .createQueryBuilder('transaction')
       .leftJoinAndSelect('transaction.category', 'category')
@@ -84,6 +85,17 @@ export class TransactionService {
         qb.andWhere('category.id = :categoryId', { categoryId });
     }
 
+    if (search) {
+      qb.andWhere(new Brackets(qb => {
+        qb.where('LOWER(transaction.description) LIKE :search', { search: `%${search.toLowerCase()}%` })
+          .orWhere('LOWER(transaction.memo) LIKE :search', { search: `%${search.toLowerCase()}%` });
+      }));
+    }
+
+    // Clone qb to get sum before pagination
+    const sumQb = qb.clone();
+    const { sum } = await sumQb.select('SUM(transaction.value)', 'sum').getRawOne();
+
     const total = await qb.getCount();
 
     const transactions = await qb
@@ -91,7 +103,7 @@ export class TransactionService {
       .skip((page - 1) * limit)
       .take(limit)
       .getMany();
-  
+
     const data = transactions.map((t) => ({
       id: t.id,
       description: t.description,
@@ -104,8 +116,8 @@ export class TransactionService {
         name: t.category.name,
       },
     }));
-  
-    return { data, total };
+
+    return { data, total, sum: Number(sum) || 0 };
   }
 
   async findOne(id: number, userId: number): Promise<TransactionResponseDto> { 
@@ -147,7 +159,7 @@ export class TransactionService {
     return result;
   }
 
-  async getBalanceByUser(userId: number, month?: number, year?: number): Promise<{ income: number, expense: number, balance: number }> {
+  async getBalanceByUser(userId: number, month?: number, year?: number, search?: string): Promise<{ income: number, expense: number, balance: number }> {
     const qb = this.transactionRepo
       .createQueryBuilder('transaction')
       .where('transaction.userId = :userId', { userId });
@@ -157,9 +169,16 @@ export class TransactionService {
       const end = new Date(year, month, 0, 23, 59, 59, 999);
       qb.andWhere('transaction.date BETWEEN :start AND :end', { start, end });
     } else if (month && !year) {
-      qb.andWhere('EXTRACT(MONTH FROM transaction.date) = :month', { month });
+      qb.andWhere("strftime('%m', transaction.date) = :month", { month: String(month).padStart(2, '0') });
     } else if (year && !month) {
-      qb.andWhere('EXTRACT(YEAR FROM transaction.date) = :year', { year });
+      qb.andWhere("strftime('%Y', transaction.date) = :year", { year: String(year) });
+    }
+
+    if (search) {
+      qb.andWhere(new Brackets(qb => {
+        qb.where('LOWER(transaction.description) LIKE :search', { search: `%${search.toLowerCase()}%` })
+          .orWhere('LOWER(transaction.memo) LIKE :search', { search: `%${search.toLowerCase()}%` });
+      }));
     }
   
     const transactions = await qb.getMany();
@@ -169,10 +188,6 @@ export class TransactionService {
         const value = parseFloat(t.value as any);
         if (t.type === 'ENTRY') acc.income += value;
         if (t.type === 'EXIT') acc.expense += value;
-        // User commented about "162k... one year of work". 
-        // The balance IS income - expense. If they want precision, we create a precise balance logic.
-        // The current logic is correct for the filtered period. 
-        // If they saw a "one year" sum but wanted a global balance, the controller handles params.
         return acc;
       },
       { income: 0, expense: 0 },
@@ -187,36 +202,41 @@ export class TransactionService {
     };
   }
 
-  async getChartData(userId: number, month?: number, year?: number, categoryId?: number): Promise<any> {
-    // Cache Key Strategy: dashboard_USERID_MONTH_YEAR_CATEGORY
-    const cacheKey = `dashboard_${userId}_${month || 'all'}_${year || 'all'}_${categoryId || 'all'}`;
+  async getChartData(userId: number, month?: number, year?: number, categoryId?: number, search?: string): Promise<any> {
+    // Cache Key Strategy: dashboard_USERID_MONTH_YEAR_CATEGORY_SEARCH
+    const cacheKey = `dashboard_v2_${userId}_${month || 'all'}_${year || 'all'}_${categoryId || 'all'}_${search || 'all'}`;
     const cached = await this.cacheManager.get(cacheKey);
     
     if (cached) {
       return cached;
     }
 
+    // Use QueryBuilder for allTransactions to support flexible OR conditions for search
     const qb = this.transactionRepo
       .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.category', 'category')
       .where('transaction.userId = :userId', { userId });
 
-    // Fetch relevant data based on filters or default (all time/last 12 months for history)
     const now = new Date();
     const targetMonth = month || (now.getMonth() + 1);
     const targetYear = year || now.getFullYear();
 
-    const where: any = { user: { id: userId } };
     if (categoryId) {
-        where.category = { id: categoryId };
+        qb.andWhere('category.id = :categoryId', { categoryId });
     }
 
-    const allTransactions = await this.transactionRepo.find({
-      where,
-      relations: ['category']
-    });
+    if (search) {
+      qb.andWhere(new Brackets(qb => {
+        qb.where('LOWER(transaction.description) LIKE :search', { search: `%${search.toLowerCase()}%` })
+          .orWhere('LOWER(transaction.memo) LIKE :search', { search: `%${search.toLowerCase()}%` });
+      }));
+    }
 
-    // Exclude 'Transferência Interna' from dashboard calculations
-    const nonInternalTransactions = allTransactions.filter(t => t.category?.name !== 'Transferência Interna');
+    const allTransactions = await qb.getMany();
+
+    // Exclude 'Transferência Interna' and 'Transferências' from dashboard calculations
+    const nonInternalTransactions = allTransactions.filter(t => 
+      t.category?.name !== 'Transferências internas');
     const formatMonth = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
     // --- 1. History Chart (Last 6 Months Trend) ---
@@ -258,18 +278,24 @@ export class TransactionService {
         } else if (year && !month) {
              return (tDate.getFullYear() === year);
         } else {
-            // Default to current month if no filter provided for "detailed" view
-            // OR maybe current year? Let's default to current Month for "Power BI" focus
-            return (tDate.getFullYear() === targetYear && (tDate.getMonth() + 1) === targetMonth);
+            // If no date filter is provided (e.g. searching "Panni"), return ALL matching transactions
+            return true;
         }
     });
+
     // --- 2. Category Breakdown (Pie Chart) ---
     const categoryMap = new Map<string, number>();
+    const incomeCategoryMap = new Map<string, number>();
+
     filteredTransactions.forEach(t => {
         if (t.type === 'EXIT') {
             const catName = t.category?.name || 'Sem Categoria';
             const val = Math.abs(Number(t.value)); // Absolute value
             categoryMap.set(catName, (categoryMap.get(catName) || 0) + val);
+        } else if (t.type === 'ENTRY') {
+            const catName = t.category?.name || 'Sem Categoria';
+            const val = Math.abs(Number(t.value));
+            incomeCategoryMap.set(catName, (incomeCategoryMap.get(catName) || 0) + val);
         }
     });
 
@@ -277,19 +303,33 @@ export class TransactionService {
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
 
-    // --- 3. Top Merchants (Bar Chart) ---
+    const incomeCategoryBreakdown = Array.from(incomeCategoryMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+    // --- 3. Top Merchants (Bar Chart) & Income Sources ---
     const merchantMap = new Map<string, number>();
+    const incomeSourceMap = new Map<string, number>();
+
     filteredTransactions.forEach(t => {
+        const description = t.description.trim();
+        const val = Math.abs(Number(t.value));
+
         if (t.type === 'EXIT') {
-             const merchant = t.description.trim(); 
-             const val = Math.abs(Number(t.value)); // Use Absolute value for aggregation
-             merchantMap.set(merchant, (merchantMap.get(merchant) || 0) + val);
+             merchantMap.set(description, (merchantMap.get(description) || 0) + val);
+        } else if (t.type === 'ENTRY') {
+             incomeSourceMap.set(description, (incomeSourceMap.get(description) || 0) + val);
         }
     });
 
     const topMerchants = Array.from(merchantMap.entries())
         .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value) // Now positive, so DESC works for "Biggest"
+        .sort((a, b) => b.value - a.value) 
+        .slice(0, 10);
+
+    const topIncomeSources = Array.from(incomeSourceMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
         .slice(0, 10);
 
     // --- 4. Summary Cards (KPIs) ---
@@ -308,10 +348,18 @@ export class TransactionService {
     let daysInPeriod = 30;
     if (month && year) {
         daysInPeriod = new Date(year, month, 0).getDate();
+    } else if (filteredTransactions.length > 0) {
+        // Calculate dynamic range based on data
+        const dates = filteredTransactions.map(t => new Date(t.date).getTime());
+        const minDate = Math.min(...dates);
+        const maxDate = Math.max(...dates);
+        // Add 1 day to include the full last day, or simply diff + 1
+        const diffTime = Math.abs(maxDate - minDate);
+        daysInPeriod = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+        // Ensure at least 1 day to avoid Infinity
+        daysInPeriod = Math.max(1, daysInPeriod);
     }
-    // If current month, use days elapsed so far? Or all month? 
-    // Let's use days in month for projection or days elapsed for actual avg? 
-    // Standard is days in period.
+    
     const dailyAverage = totalExpense / daysInPeriod;
 
     // Biggest Expense
@@ -371,7 +419,9 @@ export class TransactionService {
     const result = { 
         history, 
         categories: categoryBreakdown, 
+        incomeCategories: incomeCategoryBreakdown,
         topMerchants,
+        topIncomeSources,
         summary,
         projection: categoriesProjection
     };

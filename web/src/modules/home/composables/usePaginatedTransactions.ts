@@ -4,63 +4,76 @@ import { dashboardService } from '../services/home.service'
 export const usePaginatedTransactions = () => {
   const transactions = ref([])
   const total = ref(0)
+  const sum = ref(0)
   const loading = ref(false)
 
   const page = ref(1)
   const itemsPerPage = ref(10)
   const sortBy = ref([{ key: 'date', order: 'desc' }])
-  const month = ref<number | undefined>(undefined)
-  const year = ref<number | undefined>(undefined)
-  const categoryId = ref<number | undefined>(undefined)
+  const monthFilter = ref<number | undefined>(undefined)
+  const yearFilter = ref<number | undefined>(undefined)
+  const categoryFilter = ref<number | undefined>(undefined)
+  const searchFilter = ref<string | undefined>(undefined)
 
   const load = async () => {
     loading.value = true
     try {
-      const sort = sortBy.value[0]
-      const res = await dashboardService.getPaginatedTransactions(
+      // Extract sort key and order from sortBy array
+      const sortKey = sortBy.value.length > 0 ? sortBy.value[0].key : undefined
+      const sortOrder = sortBy.value.length > 0 ? sortBy.value[0].order.toUpperCase() : undefined
+
+      const { data, total: totalItems, sum: totalSum } = await dashboardService.getPaginatedTransactions(
         page.value,
         itemsPerPage.value,
-        sort.key,
-        sort.order.toUpperCase(),
-        month.value,
-        year.value,
-        categoryId.value
+        sortKey,
+        sortOrder,
+        monthFilter.value,
+        yearFilter.value,
+        categoryFilter.value,
+        searchFilter.value
       )
 
-      transactions.value = res.data
-      total.value = res.total
+      transactions.value = data
+      total.value = totalItems
+      sum.value = totalSum || 0
     } catch (error) {
-      console.error('Erro ao carregar transações:', error)
+      console.error('Erro ao carregar transações', error)
     } finally {
       loading.value = false
     }
   }
 
-  const setDateFilter = (newMonth?: number, newYear?: number, newCategoryId?: number) => {
-    month.value = newMonth
-    year.value = newYear
-    categoryId.value = newCategoryId
-    page.value = 1 // Reset page when filtering
+  const setDateFilter = (month?: number, year?: number, categoryId?: number, search?: string) => {
+    monthFilter.value = month
+    yearFilter.value = year
+    categoryFilter.value = categoryId
+    searchFilter.value = search
+    page.value = 1 // Reset to first page
+    load()
   }
 
   const clearDateFilter = () => {
-    month.value = undefined
-    year.value = undefined
-    categoryId.value = undefined
+    monthFilter.value = undefined
+    yearFilter.value = undefined
+    categoryFilter.value = undefined
+    searchFilter.value = undefined
     page.value = 1
+    load()
   }
 
-  watch([page, itemsPerPage, sortBy, month, year, categoryId], load, { immediate: true })
+  watch([page, itemsPerPage, sortBy, monthFilter, yearFilter, categoryFilter, searchFilter], load, { immediate: true })
 
   return {
     transactions,
     total,
+    sum,
     page,
     itemsPerPage,
     sortBy,
-    month,
-    year,
-    categoryId,
+    monthFilter,
+    yearFilter,
+    categoryFilter,
+    searchFilter,
     loading,
     load,
     setDateFilter,

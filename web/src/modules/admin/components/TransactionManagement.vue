@@ -45,6 +45,7 @@
       <v-data-table-server
         v-model:page="page"
         v-model:items-per-page="itemsPerPage"
+        v-model="selected"
         :headers="headers"
         :items="transactions"
         :items-length="total"
@@ -53,6 +54,9 @@
         @update:options="loadTransactions"
         density="comfortable"
         class="elevation-1"
+        show-select
+        item-value="id"
+        return-object
       >
         <template v-slot:item.date="{ item }">
           {{ formatDate(item.date) }}
@@ -89,6 +93,61 @@
         </template>
       </v-data-table-server>
     </v-card-text>
+
+    <!-- Floating Calculator Widget -->
+    <v-fade-transition>
+      <v-card
+        v-if="selected.length > 0"
+        class="calculator-widget"
+        elevation="8"
+        rounded="lg"
+        border
+      >
+        <v-card-title class="bg-surface text-subtitle-2 font-weight-bold d-flex justify-space-between align-center py-2">
+          <span>Calculadora de Gastos ({{ selected.length }} selecionados)</span>
+          <v-btn icon="mdi-close" size="x-small" variant="text" @click="selected = []"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-4">
+          <div class="d-flex justify-space-between align-center mb-4">
+             <span class="text-caption text-medium-emphasis">Total Selecionado:</span>
+             <span class="text-h6 font-weight-bold" :class="selectedTotal >= 0 ? 'text-success' : 'text-error'">
+                {{ formatCurrency(selectedTotal) }}
+             </span>
+          </div>
+
+          <v-divider class="mb-4"></v-divider>
+
+          <div class="d-flex gap-2 mb-2">
+              <v-text-field
+                v-model.number="calcInput"
+                label="Valor para simulação"
+                type="number"
+                density="compact"
+                variant="outlined"
+                hide-details
+                prefix="R$"
+              ></v-text-field>
+          </div>
+
+          <div class="d-flex justify-space-between gap-2">
+             <v-btn-group density="compact" class="flex-grow-1" divided variant="outlined">
+                <v-btn @click="calcOperation('+')" icon="mdi-plus" color="primary"></v-btn>
+                <v-btn @click="calcOperation('-')" icon="mdi-minus" color="primary"></v-btn>
+                <v-btn @click="calcOperation('*')" icon="mdi-close" color="primary"></v-btn>
+                <v-btn @click="calcOperation('/')" icon="mdi-slash-forward" color="primary"></v-btn>
+             </v-btn-group>
+          </div>
+
+          <div v-if="calcResult !== null" class="mt-4 pa-3 bg-grey-lighten-4 rounded text-center">
+             <div class="text-caption text-medium-emphasis mb-1">Resultado da Simulação</div>
+             <div class="text-h6 font-weight-bold primary--text">
+                {{ formatCurrency(calcResult) }}
+             </div>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-fade-transition>
 
     <!-- Dialog de Criar/Editar -->
     <v-dialog v-model="dialog" max-width="600px">
@@ -138,7 +197,32 @@
               :rules="[rules.required]"
               variant="outlined"
               class="mb-2"
-            />
+            >
+              <template v-slot:item="{ props, item }">
+                <v-list-item v-bind="props" :title="item.raw.name">
+                  <template v-slot:append>
+                    <v-chip
+                      :color="item.raw.type === 'ENTRY' ? 'green' : 'red'"
+                      size="small"
+                      class="ml-2"
+                      variant="flat"
+                    >
+                      {{ item.raw.type === 'ENTRY' ? 'Entrada' : 'Saída' }}
+                    </v-chip>
+                  </template>
+                </v-list-item>
+              </template>
+              <template v-slot:selection="{ item }">
+                <span class="mr-2">{{ item.raw.name }}</span>
+                <v-chip
+                  :color="item.raw.type === 'ENTRY' ? 'green' : 'red'"
+                  size="small"
+                  variant="flat"
+                >
+                  {{ item.raw.type === 'ENTRY' ? 'Entrada' : 'Saída' }}
+                </v-chip>
+              </template>
+            </v-select>
 
             <v-text-field
               v-model="form.date"
@@ -200,6 +284,7 @@ import { useGlobalLoader } from '@/stores/loader'
 
 const transactions = ref<Transaction[]>([])
 const categories = ref<Category[]>([])
+const selected = ref<Transaction[]>([]) // Seleção para calculadora
 const total = ref(0)
 const page = ref(1)
 const itemsPerPage = ref(10)
@@ -210,6 +295,38 @@ const formRef = ref()
 const formIsValid = ref(false)
 const isEdit = ref(false)
 const transactionToDelete = ref<Transaction | null>(null)
+
+// Calculator State
+const calcInput = ref<number | null>(null)
+const calcResult = ref<number | null>(null)
+
+const selectedTotal = computed(() => {
+  return selected.value.reduce((acc, t) => {
+    // Treat EXIT as negative for spending math?
+    // User wants "Spending Calculator". Usually summing bills.
+    // If I select 3 bills of 100, sum should be 300 (or -300).
+    // Let's use the signed value logic: ENTRY (+) EXIT (-).
+    // But for "Spending" maybe they want absolute sum of expenses?
+    // "Calculadora de Gasto" -> "Spending Calculator".
+    // Let's stick to signed sum (Balance) because they might mix Entry/Exit.
+    const val = parseFloat(t.value as any)
+    const signedVal = t.type === 'ENTRY' ? val : -Math.abs(val)
+    return acc + signedVal
+  }, 0)
+})
+
+const calcOperation = (op: string) => {
+    if (calcInput.value === null) return;
+    const base = selectedTotal.value;
+    const modifier = calcInput.value;
+
+    switch(op) {
+        case '+': calcResult.value = base + modifier; break;
+        case '-': calcResult.value = base - modifier; break;
+        case '*': calcResult.value = base * modifier; break;
+        case '/': calcResult.value = base / modifier; break;
+    }
+}
 
 // Filtros de data
 const selectedMonth = ref<number | null>(null)
@@ -467,6 +584,16 @@ onMounted(() => {
 .cyberpunk-btn:hover {
   box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
   transform: translateY(-1px);
+}
+
+.calculator-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 320px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  background: rgba(var(--v-theme-surface), 0.95);
 }
 </style>
 

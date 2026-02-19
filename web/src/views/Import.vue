@@ -36,7 +36,7 @@
             <v-btn
               variant="text"
               color="grey-darken-1"
-              @click="$router.push('/')"
+              @click="$router.push('/home')"
             >
               Voltar
             </v-btn>

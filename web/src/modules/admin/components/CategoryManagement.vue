@@ -27,13 +27,48 @@
         </template>
 
         <template v-slot:item.actions="{ item }">
+          <v-tooltip location="top" v-if="(item as any).isSystem">
+            <template v-slot:activator="{ props }">
+              <div v-bind="props" class="d-inline-block">
+                <v-btn
+                  icon="mdi-pencil"
+                  size="small"
+                  variant="text"
+                  color="grey"
+                  disabled
+                />
+              </div>
+            </template>
+            <span>Categoria padrão não pode ser editada</span>
+          </v-tooltip>
+
           <v-btn
+            v-else
             icon="mdi-pencil"
             size="small"
             variant="text"
             @click="openDialog(item)"
           />
+          
+          <!-- Botão desativado com tooltip para categorias do sistema -->
+          <v-tooltip location="top" v-if="(item as any).isSystem">
+            <template v-slot:activator="{ props }">
+              <div v-bind="props" class="d-inline-block">
+                <v-btn
+                  icon="mdi-delete"
+                  size="small"
+                  variant="text"
+                  color="grey"
+                  disabled
+                />
+              </div>
+            </template>
+            <span>Categoria padrão não pode ser excluída</span>
+          </v-tooltip>
+
+          <!-- Botão normal de excluir -->
           <v-btn
+            v-else
             icon="mdi-delete"
             size="small"
             variant="text"

@@ -20,6 +20,9 @@ export class Category {
   @Column()
   type: CategoryType;
 
+  @Column({ default: false })
+  isSystem: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -4,6 +4,7 @@ import { runSeed } from './seed';
 import { User } from '../../user/entities/user.entity';
 import { Category } from '../../category/entities/category.entity';
 import { Transaction } from '../../transaction/entities/transaction.entity';
+import { CategoryRule } from '../../category-rule/entities/category-rule.entity';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -12,7 +13,7 @@ dotenv.config();
 const AppDataSource = new DataSource({
   type: 'sqlite',
   database: 'database.sqlite',
-  entities: [User, Category, Transaction],
+  entities: [User, Category, Transaction, CategoryRule],
   synchronize: true, // Auto-create tables for seed
 });
 

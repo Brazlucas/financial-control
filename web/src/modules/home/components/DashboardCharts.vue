@@ -113,11 +113,21 @@
       </v-card>
     </v-col>
   </v-row>
+  
+  <v-row>
+    <v-col cols="12">
+        <IncomeAnalysis 
+            :incomeCategories="incomeCategories" 
+            :topSources="topIncomeSources" 
+        />
+    </v-col>
+  </v-row>
 </template>
 
 <script setup lang="ts">
 import { computed, defineProps, ref } from 'vue';
 import { Line, Doughnut, Bar } from 'vue-chartjs';
+import IncomeAnalysis from './IncomeAnalysis.vue';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -152,6 +162,8 @@ const props = defineProps<{
   merchantData: any[]; // { name: string, value: number }[]
   projectionData: any[]; // { name: string, current: number, average: number, status: string }[]
   summary: any;       // { dailyAverage, biggestExpense, ... }
+  incomeCategories?: any[];
+  topIncomeSources?: any[];
 }>();
 
 const theme = useTheme();

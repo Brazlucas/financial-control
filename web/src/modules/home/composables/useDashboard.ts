@@ -15,14 +15,16 @@ export const useDashboard = () => {
       biggestExpense: null,
       transactionCount: 0
     },
-    projection: []
+    projection: [],
+    incomeCategories: [],
+    topIncomeSources: []
   })
 
 
-  const loadDashboard = async (month?: number, year?: number, categoryId?: number) => {
+  const loadDashboard = async (month?: number, year?: number, categoryId?: number, search?: string) => {
     const [summaryData, charts] = await Promise.all([
-      dashboardService.getSummary(month, year),
-      dashboardService.getChartData(month, year, categoryId)
+      dashboardService.getSummary(month, year, search),
+      dashboardService.getChartData(month, year, categoryId, search)
     ])
 
     summary.value = summaryData;

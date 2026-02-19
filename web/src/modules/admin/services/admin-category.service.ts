@@ -4,6 +4,7 @@ export interface Category {
   id: number
   name: string
   type: 'ENTRY' | 'EXIT'
+  isSystem: boolean
   createdAt?: string
 }
 
